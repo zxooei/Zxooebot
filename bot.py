@@ -11,22 +11,21 @@ ADMIN_ID = 5833077341  # ایدی عددی خودتون رو اینجا وارد
 bot = telebot.TeleBot(TOKEN)
 
 # تابع برای فوروارد کردن پیام و دکمه شیشه‌ای برای پاسخ دادن
-@bot.message_handler(func=lambda message: True)
+@bot.message_handler(func=lambda message: message.text != "/start")  # جلوگیری از ارسال /start
 def forward_message(message):
     user = message.from_user
-    if user.id == ADMIN_ID:  # فقط شما می‌تونید جواب بدید
-        text = message.text if message.text else "این پیام متنی نبود! 🤔"
-
-        # فوروارد کردن پیام به شما
-        bot.send_message(ADMIN_ID, f"پیامی از {user.first_name}: {text}")
-        
-        # دکمه شیشه‌ای برای ارسال پاسخ
-        markup = types.InlineKeyboardMarkup()
-        button = types.InlineKeyboardButton("پاسخ بدی؟ ✉️", callback_data=f"reply_{message.message_id}")
-        markup.add(button)
-        
-        # ارسال پیام همراه با دکمه
-        bot.send_message(message.chat.id, "این پیام رو دریافت کردم:", reply_markup=markup)
+    text = message.text if message.text else "این پیام متنی نبود! 🤔"
+    
+    # فوروارد کردن پیام به شما
+    bot.send_message(ADMIN_ID, f"پیامی از {user.first_name}: {text}")
+    
+    # دکمه شیشه‌ای برای ارسال پاسخ
+    markup = types.InlineKeyboardMarkup()
+    button = types.InlineKeyboardButton("پاسخ بدی؟ ✉️", callback_data=f"reply_{message.message_id}")
+    markup.add(button)
+    
+    # ارسال پیام همراه با دکمه
+    bot.send_message(message.chat.id, "این پیام رو دریافت کردم:", reply_markup=markup)
 
 # تابع برای ارسال پاسخ به پیام
 @bot.callback_query_handler(func=lambda call: True)
