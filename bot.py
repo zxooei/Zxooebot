@@ -10,6 +10,11 @@ ADMIN_ID = 5833077341  # ایدی عددی خودتون رو اینجا وارد
 # ساخت ربات
 bot = telebot.TeleBot(TOKEN)
 
+# پیام خوشامد
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.send_message(message.chat.id, "با من ناشناس حرف بزن")
+
 # تابع برای فوروارد کردن پیام و دکمه شیشه‌ای برای پاسخ دادن
 @bot.message_handler(func=lambda message: message.text != "/start")  # جلوگیری از ارسال /start
 def forward_message(message):
@@ -19,13 +24,13 @@ def forward_message(message):
     # فوروارد کردن پیام به شما
     bot.send_message(ADMIN_ID, f"پیامی از {user.first_name}: {text}")
     
-    # دکمه شیشه‌ای برای ارسال پاسخ
+    # ارسال پیام جدید با درخواست جواب
     markup = types.InlineKeyboardMarkup()
-    button = types.InlineKeyboardButton("پاسخ بدی؟ ✉️", callback_data=f"reply_{message.message_id}")
+    button = types.InlineKeyboardButton("می‌خوای جواب بدی؟ ✉️", callback_data=f"reply_{message.message_id}")
     markup.add(button)
     
-    # ارسال پیام همراه با دکمه
-    bot.send_message(message.chat.id, "این پیام رو دریافت کردم:", reply_markup=markup)
+    # ارسال پیام همراه با دکمه به کاربر
+    bot.send_message(message.chat.id, "این پیام رو دریافت کردم. می‌خوای جواب بدی؟", reply_markup=markup)
 
 # تابع برای ارسال پاسخ به پیام
 @bot.callback_query_handler(func=lambda call: True)
