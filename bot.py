@@ -21,16 +21,17 @@ def forward_message(message):
     user = message.from_user
     text = message.text if message.text else "این پیام متنی نبود! 🤔"
     
-    # فوروارد کردن پیام به شما
-    bot.send_message(ADMIN_ID, f"پیامی از {user.first_name}: {text}")
+    # فوروارد کردن پیام به شما به صورت فوروارد تلگرامی
+    bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
     
-    # ارسال پیام جدید با درخواست جواب
-    markup = types.InlineKeyboardMarkup()
-    button = types.InlineKeyboardButton("می‌خوای جواب بدی؟ ✉️", callback_data=f"reply_{message.message_id}")
-    markup.add(button)
-    
-    # ارسال پیام همراه با دکمه به کاربر
-    bot.send_message(message.chat.id, "این پیام رو دریافت کردم. می‌خوای جواب بدی؟", reply_markup=markup)
+    # ارسال پیام جدید به شما با دکمه برای پاسخ دادن
+    if message.chat.id != ADMIN_ID:  # فقط برای شما دکمه نمایش داده میشه
+        markup = types.InlineKeyboardMarkup()
+        button = types.InlineKeyboardButton("می‌خوای جواب بدی؟ ✉️", callback_data=f"reply_{message.message_id}")
+        markup.add(button)
+        
+        # ارسال پیام همراه با دکمه به شما
+        bot.send_message(ADMIN_ID, "این پیام رو دریافت کردم. می‌خوای جواب بدی؟", reply_markup=markup)
 
 # تابع برای ارسال پاسخ به پیام
 @bot.callback_query_handler(func=lambda call: True)
