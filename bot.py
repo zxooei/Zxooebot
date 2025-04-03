@@ -2,7 +2,7 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # 🔹 تنظیمات اصلی
-TOKEN = "59629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo"
+TOKEN = "7759629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo"
 ADMIN_ID = 5833077341  # آیدی عددی شما
 
 bot = telebot.TeleBot(TOKEN)
