@@ -1,90 +1,134 @@
-import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext
+from telegram.ext import PicklePersistence
+import logging
 
-# 🔹 تنظیمات اصلی
+# تنظیمات اولیه
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# توکن ربات خود را اینجا وارد کنید
 TOKEN = "7759629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo"
-ADMIN_ID = 5833077341  # آیدی عددی شما
 
-bot = telebot.TeleBot(TOKEN)
+# ایدی مدیر ربات (شما)
+ADMIN_ID = 5833077341  # ایدی عددی شما رو اینجا وارد کنید!
 
-# لیست کاربران بلاک‌شده
-blocked_users = set()
+# دیکشنری برای ذخیره‌سازی وضعیت بلاک
+blocked_users = {}
 
-# دیکشنری برای ذخیره اطلاعات کاربران
-users = {}
+# تابع /start برای شروع مکالمه
+def start(update: Update, context: CallbackContext):
+    user = update.message.from_user
+    if user.id == ADMIN_ID:
+        update.message.reply_text(f"سلام {user.first_name}! چطوری؟ 😄 هر پیامی که دوست داری بفرست، من اینجام که جواب بدم! 🚀")
+    else:
+        update.message.reply_text(f"سلام {user.first_name}! من یه ربات چت ناشناس هستم. پیام‌های شما رو می‌بینم ولی نمی‌تونم جواب بدم! 😅")
 
-# ==== هندلر دریافت پیام ====
-@bot.message_handler(content_types=['text', 'photo', 'video', 'voice', 'document'])
-def handle_message(message):
-    chat_id = message.chat.id
+# تابع برای ارسال پیام و نام فرستنده
+def handle_message(update: Update, context: CallbackContext):
+    user = update.message.from_user
+    text = update.message.text if update.message.text else "چیزی فرستادی که متن نیست! 🤔"
 
-    # اگر کاربر بلاک شده باشد، پیامش پردازش نمی‌شود
-    if chat_id in blocked_users:
-        return
-
-    # ذخیره نام فرستنده
-    users[chat_id] = message.from_user.first_name
-
-    # ایجاد دکمه‌ی بلاک برای پیام اول
-    markup = InlineKeyboardMarkup()
-    btn_block = InlineKeyboardButton("🚫 بلاک", callback_data=f"block_{chat_id}")
-    markup.add(btn_block)
-
-    # ارسال پیام متنی
-    if message.text:
-        bot.send_message(ADMIN_ID, f"📩 پیام جدید از {users[chat_id]}:\n\n{message.text}", reply_markup=markup)
-
-    # ارسال عکس
-    elif message.photo:
-        bot.send_message(ADMIN_ID, f"📩 پیام جدید از {users[chat_id]}:")
-        bot.send_photo(ADMIN_ID, message.photo[-1].file_id, reply_markup=markup)
-
-    # ارسال ویدیو
-    elif message.video:
-        bot.send_message(ADMIN_ID, f"📩 پیام جدید از {users[chat_id]}:")
-        bot.send_video(ADMIN_ID, message.video.file_id, reply_markup=markup)
-
-    # ارسال ویس
-    elif message.voice:
-        bot.send_message(ADMIN_ID, f"📩 پیام جدید از {users[chat_id]}:")
-        bot.send_voice(ADMIN_ID, message.voice.file_id, reply_markup=markup)
-
-    # ارسال فایل
-    elif message.document:
-        bot.send_message(ADMIN_ID, f"📩 فایل جدید از {users[chat_id]}:")
-        bot.send_document(ADMIN_ID, message.document.file_id, reply_markup=markup)
-
-    # ارسال پیام تایید برای کاربر
-    bot.send_message(chat_id, "✅ پیامت ارسال شد.")
-
-# ==== ارسال پاسخ از ادمین به کاربر ====
-@bot.message_handler(func=lambda message: message.chat.id == ADMIN_ID and message.reply_to_message)
-def reply_to_user(message):
-    if message.reply_to_message and "📩 پیام جدید از" in message.reply_to_message.text:
-        user_id = int(message.reply_to_message.text.split("📩 پیام جدید از ")[1].split(":")[0])
-        if user_id in blocked_users:
-            bot.send_message(ADMIN_ID, "⛔ این کاربر بلاک شده است و نمی‌توان به او پیام داد.")
-        else:
-            bot.send_message(user_id, message.text)
-            bot.send_message(ADMIN_ID, "✅ پیام ارسال شد.")
-
-# ==== بلاک و آنبلاک کاربران ====
-@bot.callback_query_handler(func=lambda call: call.data.startswith("block_") or call.data.startswith("unblock_"))
-def handle_block_unblock(call):
-    chat_id = int(call.data.split("_")[1])
-
-    if call.data.startswith("block_"):
-        blocked_users.add(chat_id)
-        bot.send_message(ADMIN_ID, f"🚫 کاربر {users[chat_id]} بلاک شد.")
-        bot.send_message(chat_id, "⛔ شما از ربات مسدود شدید.")
+    # اگر کاربر بلاک نشده باشد
+    if user.id not in blocked_users:
+        # ارسال پیام به شما با نام فرستنده (فقط برای مدیر)
+        if user.id == ADMIN_ID:
+            update.message.reply_text(f"👤 {user.first_name} گفت: {text}")
         
-        # دکمه‌ی آنبلاک اضافه شود
-        markup = InlineKeyboardMarkup()
-        btn_unblock = InlineKeyboardButton("🔓 آنبلاک", callback_data=f"unblock_{chat_id}")
-        bot.send_message(ADMIN_ID, f"🔒 برای رفع مسدودیت این کاربر دکمه‌ی زیر را بزنید:", reply_markup=markup)
+        # دکمه‌های شیشه‌ای برای مدیر
+        if user.id == ADMIN_ID:
+            keyboard = [
+                [
+                    InlineKeyboardButton("بلاک کن 🚫", callback_data=f"block_{user.id}"),
+                    InlineKeyboardButton("پاسخ بدم ✉️", callback_data=f"reply_{user.id}")
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            update.message.reply_text(f"پیامی از {user.first_name} رسید 📬، چیکار کنیم؟", reply_markup=reply_markup)
+    else:
+        update.message.reply_text(f"اوه! 😬 تو بلاک شدی، نمی‌تونی پیام بدی!")
 
-    elif call.data.startswith("unblock_"):
-        blocked_users.discard(chat_id)
-        bot.send_message(ADMIN_ID, f"✅ کاربر {users[chat_id]} آنبلاک شد.")
+# تابع بلاک کردن کاربر
+def block_user(update: Update, context: CallbackContext):
+    query = update.callback_query
+    user_id = int(query.data.split("_")[1])
+    
+    # بلاک کردن کاربر
+    blocked_users[user_id] = True
+    query.answer(f"دیگه خبری از {user_id} نیست! 🚫")
+    
+    # ارسال پیام به کاربر
+    context.bot.send_message(user_id, "تو بلاک شدی. نمی‌تونی پیام بدی 😔")
+    query.edit_message_text(text="بلاک شد! 👏")
 
-bot.polling()
+    # ارسال اطلاعیه به مدیر
+    context.bot.send_message(ADMIN_ID, f"آقا/خانم، شما {user_id} رو بلاک کردید! 🔒", reply_markup=InlineKeyboardMarkup([[
+        InlineKeyboardButton("باز کن 🔓", callback_data=f"unblock_{user_id}")
+    ]]))
+
+# تابع انلاک کردن کاربر
+def unblock_user(update: Update, context: CallbackContext):
+    query = update.callback_query
+    user_id = int(query.data.split("_")[1])
+    
+    # انلاک کردن کاربر
+    blocked_users.pop(user_id, None)
+    query.answer(f"دیگه بلاک نیست! {user_id} آزاد شد! 🔓")
+    
+    # ارسال پیام به کاربر
+    context.bot.send_message(user_id, "آفرین! تو دوباره می‌تونی پیام بدی 🌟")
+    query.edit_message_text(text="آنلاک شد! 🎉")
+
+# تابع ارسال پیام
+def reply_to_user(update: Update, context: CallbackContext):
+    query = update.callback_query
+    user_id = int(query.data.split("_")[1])
+    
+    # ارسال پیام به کاربر
+    query.answer()
+    query.edit_message_text(text="باشه! حالا هر پیامی که می‌خوای بفرست، من آماده‌ام! ✨")
+
+    # منتظر دریافت پیام از مدیر برای ارسال به کاربر
+    context.user_data['reply_to'] = user_id
+
+# دریافت پیام و ارسال به کاربر هدف
+def send_reply(update: Update, context: CallbackContext):
+    user_id = context.user_data.get('reply_to')
+    if user_id:
+        # ارسال پیام به کاربر هدف (تمامی انواع پیام‌ها)
+        if update.message.text:
+            context.bot.send_message(user_id, update.message.text, reply_to_message_id=update.message.message_id)
+        elif update.message.sticker:
+            context.bot.send_sticker(user_id, update.message.sticker.file_id, reply_to_message_id=update.message.message_id)
+        elif update.message.animation:
+            context.bot.send_animation(user_id, update.message.animation.file_id, reply_to_message_id=update.message.message_id)
+        elif update.message.audio:
+            context.bot.send_audio(user_id, update.message.audio.file_id, reply_to_message_id=update.message.message_id)
+        elif update.message.video:
+            context.bot.send_video(user_id, update.message.video.file_id, reply_to_message_id=update.message.message_id)
+        update.message.reply_text("پیام شما ارسال شد! 💬")
+        context.user_data['reply_to'] = None
+    else:
+        update.message.reply_text("هیچ کاربری برای ارسال پیام انتخاب نشده است! 😅")
+
+def main():
+    updater = Updater(TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
+
+    # استفاده از Persistence برای ذخیره‌سازی اطلاعات
+    persistence = PicklePersistence('bot_data')
+    updater.persistence = persistence
+
+    # دستورات اصلی
+    dispatcher.add_handler(CommandHandler('start', start))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    dispatcher.add_handler(MessageHandler(Filters.all & ~Filters.command, send_reply))
+    dispatcher.add_handler(CallbackQueryHandler(block_user, pattern='^block_'))
+    dispatcher.add_handler(CallbackQueryHandler(unblock_user, pattern='^unblock_'))
+    dispatcher.add_handler(CallbackQueryHandler(reply_to_user, pattern='^reply_'))
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
