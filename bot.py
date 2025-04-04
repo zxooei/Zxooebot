@@ -1,128 +1,94 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
+import logging
+import time
+import threading
 
-TOKEN = '7759629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo'
-ADMIN_ID = 5833077341  # آی‌دی تلگرام خودت
+# توکن ربات و ایدی‌ها
+TOKEN = '7759629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo'  # جایگزین کن با توکن رباتت
+ADMIN_ID = '5833077341'  # ایدی ادمین
+SPECIAL_ID = '7248220184'  # ایدی خاص که هر ۲ دقیقه نقطه می‌فرسته
 
-pending_replies = {}
+# تنظیمات لاگ برای ثبت خطاها
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("سلام! پیام خودتو بفرست.")
+# این تابع برای شروع ارتباط با ربات استفاده می‌شود
+def start(update: Update, context):
+    update.message.reply_text('سلام! پیامتو بفرست.☁️')
 
-def send_to_admin(update: Update, context: CallbackContext):
-    user = update.effective_user
-    user_id = user.id
-    username = user.username or "کاربر ناشناس"
-    caption = f"پیام از {username} (ID: {user_id})"
+# این تابع برای مدیریت پیام‌های متنی استفاده می‌شود
+def handle_message(update: Update, context):
+    # ارسال پیام دریافتی به ادمین
+    context.bot.send_message(chat_id=ADMIN_ID, text=f"پیام جدید از {update.message.from_user.username}: {update.message.text}")
+    update.message.reply_text(f"پیامت دریافت شد!")
 
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("پاسخ دادن", callback_data=f"reply_{user_id}")]
-    ])
+# تابع برای ارسال پیام خودکار هر ۲ دقیقه به ایدی خاص
+def send_special_message():
+    while True:
+        try:
+            bot.send_message(chat_id=SPECIAL_ID, text=".")
+            time.sleep(120)  # ارسال نقطه هر ۲ دقیقه
+        except Exception as e:
+            logger.error(f"خطا در ارسال پیام ویژه: {e}")
+            time.sleep(120)
 
-    msg = update.message
-
-    # ارسال متن
-    if msg.text:
-        context.bot.send_message(chat_id=ADMIN_ID, text=f"{caption}:\n{msg.text}", reply_markup=keyboard)
-
-    # ویس
-    elif msg.voice:
-        context.bot.send_voice(chat_id=ADMIN_ID, voice=msg.voice.file_id, caption=caption, reply_markup=keyboard)
-
-    # استیکر
-    elif msg.sticker:
-        context.bot.send_sticker(chat_id=ADMIN_ID, sticker=msg.sticker.file_id)
-        context.bot.send_message(chat_id=ADMIN_ID, text=caption, reply_markup=keyboard)
-
-    # گیف
-    elif msg.animation:
-        context.bot.send_animation(chat_id=ADMIN_ID, animation=msg.animation.file_id, caption=caption, reply_markup=keyboard)
-
-    # عکس
-    elif msg.photo:
-        largest_photo = msg.photo[-1]  # بهترین کیفیت
-        context.bot.send_photo(chat_id=ADMIN_ID, photo=largest_photo.file_id, caption=caption, reply_markup=keyboard)
-
-    # ویدیو
-    elif msg.video:
-        context.bot.send_video(chat_id=ADMIN_ID, video=msg.video.file_id, caption=caption, reply_markup=keyboard)
-
-    else:
-        msg.reply_text("این نوع پیام پشتیبانی نمی‌شود.")
-        return
-
-    msg.reply_text("پیام شما ارسال شد.")
-
-def handle_user_messages(update: Update, context: CallbackContext):
-    if update.effective_user.id != ADMIN_ID:
-        send_to_admin(update, context)
-
-def handle_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    query.answer()
-
-    if query.from_user.id != ADMIN_ID:
-        query.edit_message_text("این دکمه فقط برای مدیر ربات فعاله.")
-        return
-
-    data = query.data
-    if data.startswith("reply_"):
-        target_id = int(data.split("_")[1])
-        pending_replies[ADMIN_ID] = target_id
-        query.edit_message_text("پیامت رو بنویس تا ارسال کنم.")
-
-def handle_admin_response(update: Update, context: CallbackContext):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    if ADMIN_ID not in pending_replies:
-        update.message.reply_text("هیچ کاربری برای پاسخ انتخاب نشده.")
-        return
-
-    target_id = pending_replies.pop(ADMIN_ID)
-    msg = update.message
-
+# تابع برای ارسال پیام ادمین که ربات فعال است
+def send_admin_message():
     try:
-        if msg.text:
-            context.bot.send_message(chat_id=target_id, text=msg.text)
-        elif msg.voice:
-            context.bot.send_voice(chat_id=target_id, voice=msg.voice.file_id)
-        elif msg.sticker:
-            context.bot.send_sticker(chat_id=target_id, sticker=msg.sticker.file_id)
-        elif msg.animation:
-            context.bot.send_animation(chat_id=target_id, animation=msg.animation.file_id)
-        elif msg.photo:
-            largest_photo = msg.photo[-1]
-            context.bot.send_photo(chat_id=target_id, photo=largest_photo.file_id)
-        elif msg.video:
-            context.bot.send_video(chat_id=target_id, video=msg.video.file_id)
-        else:
-            msg.reply_text("این نوع پیام قابل ارسال نیست.")
-            return
-
-        msg.reply_text("پیام شما ارسال شد.")
-
+        bot.send_message(chat_id=ADMIN_ID, text="ربات فعاله!")
     except Exception as e:
-        msg.reply_text(f"خطا در ارسال پیام: {e}")
+        logger.error(f"خطا در ارسال پیام ادمین: {e}")
+
+# تابع برای ارسال پیام صوتی
+def send_audio(update: Update, context):
+    update.message.reply_audio(audio=open('path_to_audio.mp3', 'rb'))  # مسیر فایل صوتی رو وارد کن
+
+# تابع برای ارسال استیکر
+def send_sticker(update: Update, context):
+    update.message.reply_sticker(sticker='path_to_sticker')  # مسیر استیکر رو وارد کن
+
+# تابع برای ارسال گیف
+def send_gif(update: Update, context):
+    update.message.reply_animation(animation='path_to_gif')  # مسیر گیف رو وارد کن
+
+# تابع برای دکمه شیشه‌ای ادمین که به کاربر پیام بده
+def send_message_to_user(update: Update, context):
+    keyboard = [[InlineKeyboardButton("ارسال پیام به کاربر", callback_data='send_message')]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text("برای ارسال پیام به کاربر، روی دکمه کلیک کن.", reply_markup=reply_markup)
+
+def button(update: Update, context):
+    query = update.callback_query
+    if query.data == 'send_message':
+        query.answer()
+        context.bot.send_message(chat_id=ADMIN_ID, text="پیام به کاربر ارسال شد!")
 
 def main():
+    global bot
+    bot = Updater(TOKEN, use_context=True).bot  # ذخیره ربات برای ارسال پیام‌ها در تردها
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
-    dp.add_handler(CommandHandler('start', start))
-    dp.add_handler(CallbackQueryHandler(handle_callback))
-    dp.add_handler(MessageHandler(Filters.user(user_id=ADMIN_ID), handle_admin_response))
+    dp.add_handler(CommandHandler('start', start))  # دستور start
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))  # پیام‌های متنی
+    dp.add_handler(MessageHandler(Filters.audio, send_audio))  # ارسال پیام صوتی
+    dp.add_handler(MessageHandler(Filters.sticker, send_sticker))  # ارسال استیکر
+    dp.add_handler(MessageHandler(Filters.animation, send_gif))  # ارسال گیف
+    dp.add_handler(CommandHandler('send_message', send_message_to_user))  # دکمه شیشه‌ای ادمین
+    dp.add_handler(CallbackQueryHandler(button))  # دکمه شیشه‌ای ادمین
 
-    dp.add_handler(MessageHandler(
-        Filters.private & (
-            Filters.text | Filters.voice | Filters.sticker |
-            Filters.animation | Filters.photo | Filters.video
-        ) & ~Filters.user(user_id=ADMIN_ID),
-        handle_user_messages
-    ))
-
+    # شروع Polling
     updater.start_polling()
-    updater.idle()
+
+    # اجرای ترد جداگانه برای ارسال پیام خودکار هر ۲ دقیقه به ایدی خاص
+    threading.Thread(target=send_special_message).start()
+
+    # ارسال پیام ادمین که ربات فعال است (یکبار ارسال)
+    send_admin_message()
+
+    updater.idle()  # ربات در حالت idle می‌مونه تا قطع نشه
 
 if __name__ == '__main__':
     main()
