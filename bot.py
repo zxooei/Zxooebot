@@ -1,154 +1,117 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext
-import logging
-import threading
-import time
 
-# تنظیمات ربات
-TOKEN = '7759629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo'  # توکن ربات خود را اینجا قرار بدهید
-ADMIN_ID = 5833077341  # آیدی ادمین را اینجا وارد کنید
-SPECIAL_ID = 7248220184  # آیدی خاص که ربات هر 2 دقیقه برای آن پیام بفرستد
+‏from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+‏from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 
-# لاگ‌ها برای بررسی خطا
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+‏TOKEN = '7759629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo'  # توکن رباتت رو اینجا بذار
+‏ADMIN_ID = 5833077341  # آی‌دی عددی خودت اینجا جایگزین کن
 
-# پیام شروع
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("پیامتو بفرست تا بصورت ناشناس برسه دستم!")
+‏pending_replies = {}
 
-# ارسال دکمه پاسخ فقط برای ادمین
-def send_to_admin_with_button(bot, message, user_id):
-    user_name = message.from_user.full_name  # اسم کامل کاربر
-    user_username = message.from_user.username  # نام کاربری (در صورت موجود بودن)
-    user_id = message.from_user.id  # آیدی کاربر
-    
-    # فوروارد کردن پیام به ادمین
-    forward = bot.forward_message(chat_id=ADMIN_ID, from_chat_id=message.chat_id, message_id=message.message_id)
-    
-    keyboard = [
-        [InlineKeyboardButton("پاسخ به این پیام", callback_data=f"reply|{user_id}|{message.message_id}")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+‏def start(update: Update, context: CallbackContext):
+‏    update.message.reply_text("سلام پیامتو برام بفرست!")
 
-    # ارسال پیام به ادمین با نمایش اسم، نام کاربری و آیدی کاربر
-    bot.send_message(
-        chat_id=ADMIN_ID,
-        text=f"پیامی از {user_name} (@{user_username}) رسید.\n\nID: {user_id}\n\nبا کلیک روی دکمه زیر می‌تونی بهش پاسخ بدی.",
-        reply_markup=reply_markup
-    )
+‏def send_to_admin(update: Update, context: CallbackContext):
+‏    user = update.effective_user
+‏    user_id = user.id
+‏    username = user.username or "کاربر"
+‏    caption = f"پیام از {username} (ID: {user_id})"
 
-# هندل همه‌ی نوع پیام
-def handle_all_messages(update: Update, context: CallbackContext):
-    message = update.message
-    user_id = message.from_user.id
+‏    keyboard = InlineKeyboardMarkup([
+‏        [InlineKeyboardButton("جواب بده", callback_data=f"reply_{user_id}")]
+    ])
 
-    # بررسی اینکه آیا فرستنده همان ادمین است یا خیر
-    if message.chat_id == ADMIN_ID:
-        return  # اگر ادمین پیام بده، پیام دوباره برای خود ادمین ارسال نشود
+‏    msg = update.message
 
-    # ارسال پیام به ادمین
-    send_to_admin_with_button(context.bot, message, user_id)
-    
-    # ارسال پیام تایید به کاربر
-    message.reply_text("پیامت رسید! اگه لازم باشه جواب می‌دم.")
+‏    if msg.text:
+‏        context.bot.send_message(chat_id=ADMIN_ID, text=f"{caption}:\n{msg.text}", reply_markup=keyboard)
+‏    elif msg.voice:
+‏        context.bot.send_voice(chat_id=ADMIN_ID, voice=msg.voice.file_id, caption=caption, reply_markup=keyboard)
+‏    elif msg.sticker:
+‏        context.bot.send_sticker(chat_id=ADMIN_ID, sticker=msg.sticker.file_id)
+‏        context.bot.send_message(chat_id=ADMIN_ID, text=caption, reply_markup=keyboard)
+‏    elif msg.animation:
+‏        context.bot.send_animation(chat_id=ADMIN_ID, animation=msg.animation.file_id, caption=caption, reply_markup=keyboard)
+‏    elif msg.photo:
+‏        largest_photo = msg.photo[-1]
+‏        context.bot.send_photo(chat_id=ADMIN_ID, photo=largest_photo.file_id, caption=caption, reply_markup=keyboard)
+‏    elif msg.video:
+‏        context.bot.send_video(chat_id=ADMIN_ID, video=msg.video.file_id, caption=caption, reply_markup=keyboard)
+‏    else:
+‏        msg.reply_text("اوه! این نوع پیام رو فعلاً نمی‌تونم بفرستم.")
+‏        return
 
-# گرفتن ورودی ادمین برای پاسخ
-def button_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    query.answer()
-    data = query.data
+‏    msg.reply_text("دمت گرم! پیامت رسید و ناشناس فرستاده شد.")
 
-    if data.startswith("reply|"):
-        target_user_id, original_message_id = data.split("|")[1], data.split("|")[2]
-        context.user_data["reply_to"] = target_user_id
-        context.user_data["original_message_id"] = original_message_id
-        context.bot.send_message(chat_id=ADMIN_ID, text="خب! جوابتو تایپ کن تا براش بفرستم.")
+‏def handle_user_messages(update: Update, context: CallbackContext):
+‏    if update.effective_user.id != ADMIN_ID:
+‏        send_to_admin(update, context)
 
-# وقتی ادمین پیام می‌فرسته به کاربر
-def admin_reply(update: Update, context: CallbackContext):
-    if update.message.chat_id != ADMIN_ID:
-        return
+‏def handle_callback(update: Update, context: CallbackContext):
+‏    query = update.callback_query
+‏    query.answer()
 
-    # پیدا کردن آیدی کاربر هدف از context
-    target = context.user_data.get("reply_to")
-    
-    # بررسی اینکه آیا آیدی هدف مشخص شده یا خیر
-    if target:
-        # ارسال پیام به کاربر هدف (نه به ادمین)
-        message = update.message
+‏    if query.from_user.id != ADMIN_ID:
+‏        query.edit_message_text("این دکمه فقط برای مدیر فعاله.")
+‏        return
 
-        # بررسی نوع پیام و ارسال پیام متناسب با نوع آن
-        if message.text:
-            context.bot.send_message(chat_id=target, text=message.text)
-        elif message.sticker:
-            context.bot.send_sticker(chat_id=target, sticker=message.sticker.file_id)
-        elif message.audio:
-            context.bot.send_audio(chat_id=target, audio=message.audio.file_id)
-        elif message.video:
-            context.bot.send_video(chat_id=target, video=message.video.file_id)
-        elif message.voice:
-            context.bot.send_voice(chat_id=target, voice=message.voice.file_id)
-        elif message.document:
-            context.bot.send_document(chat_id=target, document=message.document.file_id)
-        elif message.photo:
-            context.bot.send_photo(chat_id=target, photo=message.photo[-1].file_id)
-        
-        # تایید ارسال پیام به ادمین
-        update.message.reply_text("پیام به کاربر ارسال شد!")
-        
-        # پاک کردن آیدی هدف از context بعد از ارسال
-        context.user_data["reply_to"] = None
-        context.user_data["original_message_id"] = None
-    else:
-        update.message.reply_text("اول باید رو دکمه‌ی «پاسخ به این پیام» بزنی!")
+‏    data = query.data
+‏    if data.startswith("reply_"):
+‏        target_id = int(data.split("_")[1])
+‏        pending_replies[ADMIN_ID] = target_id
+‏        query.edit_message_text("خب حالا جوابشو بفرست")
 
-# ارسال نقطه هر 2 دقیقه به SPECIAL_ID
-def keep_bot_alive():
-    while True:
-        try:
-            bot.send_message(chat_id=SPECIAL_ID, text=".")
-        except Exception as e:
-            logger.error(f"خطا در keep_alive: {e}")
-        time.sleep(120)
+‏def handle_admin_response(update: Update, context: CallbackContext):
+‏    if update.effective_user.id != ADMIN_ID:
+‏        return
 
-# ارسال پیام وضعیت ربات برای ادمین
-def send_bot_status_message(status):
-    try:
-        bot.send_message(chat_id=ADMIN_ID, text=f"وضعیت ربات: {status}")
-    except Exception as e:
-        logger.error(f"خطا در ارسال وضعیت ربات: {e}")
+‏    if ADMIN_ID not in pending_replies:
+‏        update.message.reply_text("هیچ کسی رو برای جواب دادن انتخاب نکردی.")
+‏        return
 
-# اجرای ربات
-def main():
-    global bot
-    updater = Updater(TOKEN, use_context=True)
-    bot = updater.bot
-    dp = updater.dispatcher
+‏    target_id = pending_replies.pop(ADMIN_ID)
+‏    msg = update.message
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(button_callback))
-    dp.add_handler(MessageHandler(Filters.all & ~Filters.command, handle_all_messages))
-    dp.add_handler(MessageHandler(Filters.text & Filters.chat(chat_id=ADMIN_ID), admin_reply))
-    dp.add_handler(MessageHandler(Filters.sticker & Filters.chat(chat_id=ADMIN_ID), admin_reply))
-    dp.add_handler(MessageHandler(Filters.audio & Filters.chat(chat_id=ADMIN_ID), admin_reply))
-    dp.add_handler(MessageHandler(Filters.video & Filters.chat(chat_id=ADMIN_ID), admin_reply))
-    dp.add_handler(MessageHandler(Filters.voice & Filters.chat(chat_id=ADMIN_ID), admin_reply))
-    dp.add_handler(MessageHandler(Filters.document & Filters.chat(chat_id=ADMIN_ID), admin_reply))
-    dp.add_handler(MessageHandler(Filters.photo & Filters.chat(chat_id=ADMIN_ID), admin_reply))
+‏    try:
+‏        if msg.text:
+‏            context.bot.send_message(chat_id=target_id, text=msg.text)
+‏        elif msg.voice:
+‏            context.bot.send_voice(chat_id=target_id, voice=msg.voice.file_id)
+‏        elif msg.sticker:
+‏            context.bot.send_sticker(chat_id=target_id, sticker=msg.sticker.file_id)
+‏        elif msg.animation:
+‏            context.bot.send_animation(chat_id=target_id, animation=msg.animation.file_id)
+‏        elif msg.photo:
+‏            largest_photo = msg.photo[-1]
+‏            context.bot.send_photo(chat_id=target_id, photo=largest_photo.file_id)
+‏        elif msg.video:
+‏            context.bot.send_video(chat_id=target_id, video=msg.video.file_id)
+‏        else:
+‏            msg.reply_text("اوه! این نوع پیام رو نمی‌تونم بفرستم.")
+‏            return
 
-    # اجرای ترد جدا برای زنده نگه داشتن ربات
-    threading.Thread(target=keep_bot_alive, daemon=True).start()
+‏        msg.reply_text("اوکی، جواب فرستاده شد.")
 
-    # ارسال پیام وضعیت ربات به ادمین
-    send_bot_status_message("در حال راه‌اندازی...")
-    
-    updater.start_polling()  # ربات شروع به کار می‌کند
-    send_bot_status_message("فعال است.")  # اطلاع از فعال بودن ربات
-    
-    updater.idle()  # منتظر دریافت پیام‌ها
+‏    except Exception as e:
+‏        msg.reply_text(f"یه مشکلی خوردیم: {e}")
 
-    send_bot_status_message("خاموش شد.")  # اطلاع از خاموش بودن ربات
+‏def main():
+‏    updater = Updater(TOKEN, use_context=True)
+‏    dp = updater.dispatcher
 
-if __name__ == '__main__':
-    main()
+‏    dp.add_handler(CommandHandler('start', start))
+‏    dp.add_handler(CallbackQueryHandler(handle_callback))
+‏    dp.add_handler(MessageHandler(Filters.user(user_id=ADMIN_ID), handle_admin_response))
+
+‏    dp.add_handler(MessageHandler(
+‏        Filters.private & (
+‏            Filters.text | Filters.voice | Filters.sticker |
+‏            Filters.animation | Filters.photo | Filters.video
+‏        ) & ~Filters.user(user_id=ADMIN_ID),
+‏        handle_user_messages
+    ))
+
+‏    updater.start_polling()
+‏    updater.idle()
+
+‏if __name__ == '__main__':
+‏    main()
