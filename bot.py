@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # پیام شروع
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text("پیامتو بفرست تا برسه دستم!")
+    update.message.reply_text("پیامتو بفرست تا بصورت ناشناس برسه دستم!")
 
 # ارسال دکمه پاسخ فقط برای ادمین
 def send_to_admin_with_button(bot, message, user_id):
