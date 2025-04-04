@@ -2,38 +2,38 @@ import telebot
 from telebot import types
 import traceback
 
-# توکن و آیدی عددی خودت رو اینجا بذار
 TOKEN = "7759629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo"
-ADMIN_ID = 5833077341  # آیدی عددی خودت
+ADMIN_ID = 5833077341  # آیدی عددی تو
 
 bot = telebot.TeleBot(TOKEN)
 
 @bot.message_handler(commands=['start'])
 def welcome(message):
     if message.chat.id != ADMIN_ID:
-        bot.send_message(message.chat.id, "با من ناشناس حرف بزن")
+        bot.send_message(message.chat.id, "پیامتو بفرست برام")
 
-@bot.message_handler(func=lambda message: True, content_types=['text', 'sticker', 'animation', 'audio', 'voice', 'video', 'video_note', 'document'])
+@bot.message_handler(func=lambda message: True, content_types=[
+    'text', 'sticker', 'animation', 'audio', 'voice', 'video', 'video_note', 'document'
+])
 def handle_user_message(message):
     if message.chat.id == ADMIN_ID:
         return
 
     try:
-        # ارسال محتوای پیام کاربر برای ادمین (تو)
-        sent_msg = send_anonymous_copy_to_admin(message)
+        # ارسال پیام به ادمین
+        sent_msg = send_copy_to_admin(message)
 
-        # ساخت دکمه فقط برای ادمین
+        # دکمه پاسخ
         markup = types.InlineKeyboardMarkup()
-        btn = types.InlineKeyboardButton("پاسخ", callback_data=f"reply_{message.chat.id}_{sent_msg.message_id}")
+        btn = types.InlineKeyboardButton("پاسخ", callback_data=f"reply_{message.chat.id}")
         markup.add(btn)
-
         bot.send_message(ADMIN_ID, "می‌خوای جواب بدی؟", reply_markup=markup)
 
     except Exception:
         traceback.print_exc()
-        bot.send_message(ADMIN_ID, "یه مشکلی پیش اومد موقع کپی پیام!")
+        bot.send_message(ADMIN_ID, "خطا هنگام کپی پیام!")
 
-def send_anonymous_copy_to_admin(message):
+def send_copy_to_admin(message):
     if message.text:
         return bot.send_message(ADMIN_ID, message.text)
     elif message.sticker:
@@ -56,48 +56,42 @@ def send_anonymous_copy_to_admin(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
 def handle_reply_button(call):
     try:
-        data = call.data.split("_")
-        target_id = int(data[1])
-        reply_to_msg_id = int(data[2])
-
+        user_id = int(call.data.split("_")[1])
         bot.answer_callback_query(call.id)
         bot.send_message(ADMIN_ID, "منتظرم پیامتو بفرستی...")
-        bot.register_next_step_handler_by_chat_id(call.message.chat.id, process_reply, target_id, reply_to_msg_id)
+        bot.register_next_step_handler_by_chat_id(call.message.chat.id, process_reply, user_id)
 
     except Exception:
         traceback.print_exc()
-        bot.send_message(ADMIN_ID, "خطا توی دکمه‌ی پاسخ")
+        bot.send_message(ADMIN_ID, "خطا در دکمه‌ی پاسخ")
 
-def process_reply(message, target_id, reply_to_msg_id):
+def process_reply(message, user_id):
     try:
-        kwargs = {'chat_id': target_id, 'reply_to_message_id': reply_to_msg_id}
-
         if message.text:
-            bot.send_message(**kwargs, text=message.text)
+            bot.send_message(user_id, message.text)
         elif message.sticker:
-            bot.send_sticker(**kwargs, sticker=message.sticker.file_id)
+            bot.send_sticker(user_id, message.sticker.file_id)
         elif message.animation:
-            bot.send_animation(**kwargs, animation=message.animation.file_id)
+            bot.send_animation(user_id, message.animation.file_id)
         elif message.audio:
-            bot.send_audio(**kwargs, audio=message.audio.file_id)
+            bot.send_audio(user_id, message.audio.file_id)
         elif message.voice:
-            bot.send_voice(**kwargs, voice=message.voice.file_id)
+            bot.send_voice(user_id, message.voice.file_id)
         elif message.video:
-            bot.send_video(**kwargs, video=message.video.file_id)
+            bot.send_video(user_id, message.video.file_id)
         elif message.video_note:
-            bot.send_video_note(**kwargs, video_note=message.video_note.file_id)
+            bot.send_video_note(user_id, message.video_note.file_id)
         elif message.document:
-            bot.send_document(**kwargs, document=message.document.file_id)
+            bot.send_document(user_id, message.document.file_id)
         else:
             bot.send_message(ADMIN_ID, "این نوع پیام رو نمی‌تونم بفرستم.")
     except Exception:
         traceback.print_exc()
-        bot.send_message(ADMIN_ID, "خطا موقع فرستادن جواب!")
+        bot.send_message(ADMIN_ID, "خطا هنگام ارسال پیام!")
 
-# جلوگیری از کرش ربات
+# اجرای دائمی ربات
 while True:
     try:
         bot.polling(none_stop=True)
     except Exception:
         traceback.print_exc()
-        print("ربات کرش کرد، دوباره راه‌اندازی می‌شه...")
