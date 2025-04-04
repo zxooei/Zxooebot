@@ -7,7 +7,7 @@ ADMIN_ID = 5833077341  # آی‌دی تلگرام خودت
 pending_replies = {}
 
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text("سلام! پیام، ویس، گیف، عکس، ویدیو یا استیکر ناشناس خودتو بفرست.")
+    update.message.reply_text("سلام! پیام خودتو بفرست.")
 
 def send_to_admin(update: Update, context: CallbackContext):
     user = update.effective_user
@@ -51,7 +51,7 @@ def send_to_admin(update: Update, context: CallbackContext):
         msg.reply_text("این نوع پیام پشتیبانی نمی‌شود.")
         return
 
-    msg.reply_text("پیام شما ناشناس ارسال شد.")
+    msg.reply_text("پیام شما ارسال شد.")
 
 def handle_user_messages(update: Update, context: CallbackContext):
     if update.effective_user.id != ADMIN_ID:
@@ -69,7 +69,7 @@ def handle_callback(update: Update, context: CallbackContext):
     if data.startswith("reply_"):
         target_id = int(data.split("_")[1])
         pending_replies[ADMIN_ID] = target_id
-        query.edit_message_text("پیامت رو (متنی، ویس، عکس، ویدیو...) بنویس تا ارسال کنم.")
+        query.edit_message_text("پیامت رو بنویس تا ارسال کنم.")
 
 def handle_admin_response(update: Update, context: CallbackContext):
     if update.effective_user.id != ADMIN_ID:
@@ -84,7 +84,7 @@ def handle_admin_response(update: Update, context: CallbackContext):
 
     try:
         if msg.text:
-            context.bot.send_message(chat_id=target_id, text=f"پاسخ مدیر:\n{msg.text}")
+            context.bot.send_message(chat_id=target_id, text=msg.text)
         elif msg.voice:
             context.bot.send_voice(chat_id=target_id, voice=msg.voice.file_id)
         elif msg.sticker:
