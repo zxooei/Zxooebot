@@ -1,110 +1,103 @@
-import logging
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Updater, MessageHandler, CallbackQueryHandler, Filters, CallbackContext
-import os
+import telebot
+from telebot import types
+import traceback
 
-# توکن ربات
+# توکن و آیدی عددی خودت رو اینجا بذار
 TOKEN = "7759629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo"
+ADMIN_ID = 5833077341  # آیدی عددی خودت
 
-# آیدی عددی ادمین
-ADMIN_ID = 5833077341
+bot = telebot.TeleBot(TOKEN)
 
-# لیست مکالمات در حال پاسخ
-reply_targets = {}
+@bot.message_handler(commands=['start'])
+def welcome(message):
+    if message.chat.id != ADMIN_ID:
+        bot.send_message(message.chat.id, "با من ناشناس حرف بزن")
 
-# لاگ‌گیری
-logging.basicConfig(level=logging.INFO)
-
-# مدیریت دریافت پیام‌های کاربران (ناشناس)
-def handle_messages(update: Update, context: CallbackContext):
-    user = update.effective_user
-    msg = update.message
-
-    if user.id == ADMIN_ID:
-        return  # پیام‌های ادمین رو رد می‌کنیم
-
-    # ساخت کیبورد شیشه‌ای پاسخ
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("پاسخ", callback_data=f"reply|{user.id}")]
-    ])
+@bot.message_handler(func=lambda message: True, content_types=['text', 'sticker', 'animation', 'audio', 'voice', 'video', 'video_note', 'document'])
+def handle_user_message(message):
+    if message.chat.id == ADMIN_ID:
+        return
 
     try:
-        # بر اساس نوع پیام
-        if msg.text:
-            context.bot.send_message(chat_id=ADMIN_ID, text=msg.text, reply_markup=keyboard)
-        elif msg.sticker:
-            context.bot.send_sticker(chat_id=ADMIN_ID, sticker=msg.sticker.file_id, reply_markup=keyboard)
-        elif msg.voice:
-            context.bot.send_voice(chat_id=ADMIN_ID, voice=msg.voice.file_id, reply_markup=keyboard)
-        elif msg.animation:
-            context.bot.send_animation(chat_id=ADMIN_ID, animation=msg.animation.file_id, reply_markup=keyboard)
-        elif msg.photo:
-            photo = msg.photo[-1].file_id
-            context.bot.send_photo(chat_id=ADMIN_ID, photo=photo, caption=msg.caption or "", reply_markup=keyboard)
-        elif msg.video:
-            context.bot.send_video(chat_id=ADMIN_ID, video=msg.video.file_id, caption=msg.caption or "", reply_markup=keyboard)
-        elif msg.document:
-            context.bot.send_document(chat_id=ADMIN_ID, document=msg.document.file_id, caption=msg.caption or "", reply_markup=keyboard)
-    except Exception as e:
-        print(f"خطا در ارسال پیام ناشناس به ادمین: {e}")
+        # ارسال محتوای پیام کاربر برای ادمین (تو)
+        sent_msg = send_anonymous_copy_to_admin(message)
 
-# وقتی ادمین روی "پاسخ" کلیک می‌کنه
-def button_handler(update: Update, context: CallbackContext):
-    query = update.callback_query
-    query.answer()
+        # ساخت دکمه فقط برای ادمین
+        markup = types.InlineKeyboardMarkup()
+        btn = types.InlineKeyboardButton("پاسخ", callback_data=f"reply_{message.chat.id}_{sent_msg.message_id}")
+        markup.add(btn)
 
-    if query.from_user.id != ADMIN_ID:
-        return
+        bot.send_message(ADMIN_ID, "می‌خوای جواب بدی؟", reply_markup=markup)
 
-    data = query.data
-    if data.startswith("reply|"):
-        target_id = int(data.split("|")[1])
-        reply_targets[ADMIN_ID] = target_id
-        context.bot.send_message(chat_id=ADMIN_ID, text="خب، پیامت رو بفرست:")
+    except Exception:
+        traceback.print_exc()
+        bot.send_message(ADMIN_ID, "یه مشکلی پیش اومد موقع کپی پیام!")
 
-# وقتی ادمین پیام ارسال می‌کنه
-def handle_admin_reply(update: Update, context: CallbackContext):
-    if update.effective_user.id != ADMIN_ID:
-        return
+def send_anonymous_copy_to_admin(message):
+    if message.text:
+        return bot.send_message(ADMIN_ID, message.text)
+    elif message.sticker:
+        return bot.send_sticker(ADMIN_ID, message.sticker.file_id)
+    elif message.animation:
+        return bot.send_animation(ADMIN_ID, message.animation.file_id)
+    elif message.audio:
+        return bot.send_audio(ADMIN_ID, message.audio.file_id)
+    elif message.voice:
+        return bot.send_voice(ADMIN_ID, message.voice.file_id)
+    elif message.video:
+        return bot.send_video(ADMIN_ID, message.video.file_id)
+    elif message.video_note:
+        return bot.send_video_note(ADMIN_ID, message.video_note.file_id)
+    elif message.document:
+        return bot.send_document(ADMIN_ID, message.document.file_id)
+    else:
+        return bot.send_message(ADMIN_ID, "این نوع پیام رو نمی‌تونم بفرستم.")
 
-    target_id = reply_targets.get(ADMIN_ID)
-    if not target_id:
-        return
-
-    msg = update.message
-
+@bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
+def handle_reply_button(call):
     try:
-        if msg.text:
-            context.bot.send_message(chat_id=target_id, text=msg.text)
-        elif msg.sticker:
-            context.bot.send_sticker(chat_id=target_id, sticker=msg.sticker.file_id)
-        elif msg.voice:
-            context.bot.send_voice(chat_id=target_id, voice=msg.voice.file_id)
-        elif msg.animation:
-            context.bot.send_animation(chat_id=target_id, animation=msg.animation.file_id)
-        elif msg.photo:
-            context.bot.send_photo(chat_id=target_id, photo=msg.photo[-1].file_id, caption=msg.caption or "")
-        elif msg.video:
-            context.bot.send_video(chat_id=target_id, video=msg.video.file_id, caption=msg.caption or "")
-        elif msg.document:
-            context.bot.send_document(chat_id=target_id, document=msg.document.file_id, caption=msg.caption or "")
-        
-        reply_targets.pop(ADMIN_ID)
-        context.bot.send_message(chat_id=ADMIN_ID, text="پیام ارسال شد.")
-    except Exception as e:
-        print(f"خطا در ارسال پاسخ: {e}")
-        context.bot.send_message(chat_id=ADMIN_ID, text="خطا در ارسال پیام.")
+        data = call.data.split("_")
+        target_id = int(data[1])
+        reply_to_msg_id = int(data[2])
 
-def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+        bot.answer_callback_query(call.id)
+        bot.send_message(ADMIN_ID, "منتظرم پیامتو بفرستی...")
+        bot.register_next_step_handler_by_chat_id(call.message.chat.id, process_reply, target_id, reply_to_msg_id)
 
-    dp.add_handler(CallbackQueryHandler(button_handler))
-    dp.add_handler(MessageHandler(Filters.user(user_id=ADMIN_ID) & Filters.all, handle_admin_reply))
-    dp.add_handler(MessageHandler(Filters.all & ~Filters.command, handle_messages))
+    except Exception:
+        traceback.print_exc()
+        bot.send_message(ADMIN_ID, "خطا توی دکمه‌ی پاسخ")
 
-    updater.start_polling()
-    updater.idle()
+def process_reply(message, target_id, reply_to_msg_id):
+    try:
+        kwargs = {'chat_id': target_id, 'reply_to_message_id': reply_to_msg_id}
 
-if __name__ == '__main__':
-    main()
+        if message.text:
+            bot.send_message(**kwargs, text=message.text)
+        elif message.sticker:
+            bot.send_sticker(**kwargs, sticker=message.sticker.file_id)
+        elif message.animation:
+            bot.send_animation(**kwargs, animation=message.animation.file_id)
+        elif message.audio:
+            bot.send_audio(**kwargs, audio=message.audio.file_id)
+        elif message.voice:
+            bot.send_voice(**kwargs, voice=message.voice.file_id)
+        elif message.video:
+            bot.send_video(**kwargs, video=message.video.file_id)
+        elif message.video_note:
+            bot.send_video_note(**kwargs, video_note=message.video_note.file_id)
+        elif message.document:
+            bot.send_document(**kwargs, document=message.document.file_id)
+        else:
+            bot.send_message(ADMIN_ID, "این نوع پیام رو نمی‌تونم بفرستم.")
+    except Exception:
+        traceback.print_exc()
+        bot.send_message(ADMIN_ID, "خطا موقع فرستادن جواب!")
+
+# جلوگیری از کرش ربات
+while True:
+    try:
+        bot.polling(none_stop=True)
+    except Exception:
+        traceback.print_exc()
+        print("ربات کرش کرد، دوباره راه‌اندازی می‌شه...")
