@@ -1,97 +1,100 @@
 import telebot
-from telebot import types
-import traceback
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import threading
+import time
+import sys
 
-TOKEN = "7759629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo"
-ADMIN_ID = 5833077341  # آیدی عددی تو
+# تنظیمات ربات
+TOKEN = '7759629156:AAEVdRZSUa8AONPKDUHJdOReUosR3LT5fRo'
+ADMIN_ID = 5833077341  # آیدی عددی خودت رو بذار اینجا
 
 bot = telebot.TeleBot(TOKEN)
+user_message_map = {}
 
-@bot.message_handler(commands=['start'])
-def welcome(message):
-    if message.chat.id != ADMIN_ID:
-        bot.send_message(message.chat.id, "Hi")
-
-@bot.message_handler(func=lambda message: True, content_types=[
-    'text', 'sticker', 'animation', 'audio', 'voice', 'video', 'video_note', 'document'
-])
-def handle_user_message(message):
-    if message.chat.id == ADMIN_ID:
-        return
-
+# اطلاع به ادمین وقتی ربات ری‌استارت میشه
+def notify_admin():
     try:
-        # ارسال پیام به ادمین
-        sent_msg = send_copy_to_admin(message)
+        bot.send_message(ADMIN_ID, "ربات با موفقیت ری‌استارت شد.")
+    except:
+        pass
 
-        # دکمه پاسخ
-        markup = types.InlineKeyboardMarkup()
-        btn = types.InlineKeyboardButton("پاسخ", callback_data=f"reply_{message.chat.id}")
-        markup.add(btn)
-        bot.send_message(ADMIN_ID, "می‌خوای جواب بدی؟", reply_markup=markup)
+notify_admin()
 
-    except Exception:
-        traceback.print_exc()
-        bot.send_message(ADMIN_ID, "خطا هنگام کپی پیام!")
+# ساخت دکمه پاسخ
+def make_reply_button(user_id):
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("پاسخ بده", callback_data=f"reply_{user_id}"))
+    return markup
 
-def send_copy_to_admin(message):
-    if message.text:
-        return bot.send_message(ADMIN_ID, message.text)
-    elif message.sticker:
-        return bot.send_sticker(ADMIN_ID, message.sticker.file_id)
-    elif message.animation:
-        return bot.send_animation(ADMIN_ID, message.animation.file_id)
-    elif message.audio:
-        return bot.send_audio(ADMIN_ID, message.audio.file_id)
-    elif message.voice:
-        return bot.send_voice(ADMIN_ID, message.voice.file_id)
-    elif message.video:
-        return bot.send_video(ADMIN_ID, message.video.file_id)
-    elif message.video_note:
-        return bot.send_video_note(ADMIN_ID, message.video_note.file_id)
-    elif message.document:
-        return bot.send_document(ADMIN_ID, message.document.file_id)
-    else:
-        return bot.send_message(ADMIN_ID, "این نوع پیام رو نمی‌تونم بفرستم.")
+# هندل همه نوع پیام
+@bot.message_handler(content_types=['text', 'photo', 'video', 'voice', 'sticker', 'animation', 'video_note', 'document'])
+def handle_messages(message):
+    if message.from_user.id == ADMIN_ID:
+        return  # ادمین به خودش پیام نفرسته
 
+    user_id = message.from_user.id
+    user_message_map[str(message.message_id)] = user_id
+
+    kwargs = {
+        'chat_id': ADMIN_ID,
+        'reply_markup': make_reply_button(user_id)
+    }
+
+    if message.content_type == 'text':
+        bot.send_message(**kwargs, text=message.text)
+    elif message.content_type == 'photo':
+        bot.send_photo(**kwargs, photo=message.photo[-1].file_id, caption=message.caption or "")
+    elif message.content_type == 'video':
+        bot.send_video(**kwargs, video=message.video.file_id, caption=message.caption or "")
+    elif message.content_type == 'voice':
+        bot.send_voice(**kwargs, voice=message.voice.file_id)
+    elif message.content_type == 'sticker':
+        bot.send_sticker(**kwargs, sticker=message.sticker.file_id)
+    elif message.content_type == 'animation':
+        bot.send_animation(**kwargs, animation=message.animation.file_id, caption=message.caption or "")
+    elif message.content_type == 'video_note':
+        bot.send_video_note(**kwargs, data=message.video_note.file_id)
+    elif message.content_type == 'document':
+        bot.send_document(**kwargs, document=message.document.file_id, caption=message.caption or "")
+
+    # تایید به کاربر
+    bot.send_message(user_id, "پیام شما ارسال شد.")
+
+# دکمه پاسخ
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
-def handle_reply_button(call):
-    try:
-        user_id = int(call.data.split("_")[1])
-        bot.answer_callback_query(call.id)
-        bot.send_message(ADMIN_ID, "منتظرم پیامتو بفرستی...")
-        bot.register_next_step_handler_by_chat_id(call.message.chat.id, process_reply, user_id)
+def handle_reply(call):
+    user_id = int(call.data.split("_")[1])
+    msg = bot.send_message(ADMIN_ID, "پیامت رو برای این کاربر بفرست:")
+    bot.register_next_step_handler(msg, forward_reply, user_id)
+    bot.answer_callback_query(call.id, "منتظر پیامت هستم...")
 
-    except Exception:
-        traceback.print_exc()
-        bot.send_message(ADMIN_ID, "خطا در دکمه‌ی پاسخ")
-
-def process_reply(message, user_id):
+def forward_reply(message, user_id):
     try:
-        if message.text:
+        if message.content_type == 'text':
             bot.send_message(user_id, message.text)
-        elif message.sticker:
-            bot.send_sticker(user_id, message.sticker.file_id)
-        elif message.animation:
-            bot.send_animation(user_id, message.animation.file_id)
-        elif message.audio:
-            bot.send_audio(user_id, message.audio.file_id)
-        elif message.voice:
+        elif message.content_type == 'photo':
+            bot.send_photo(user_id, message.photo[-1].file_id, caption=message.caption or "")
+        elif message.content_type == 'video':
+            bot.send_video(user_id, message.video.file_id, caption=message.caption or "")
+        elif message.content_type == 'voice':
             bot.send_voice(user_id, message.voice.file_id)
-        elif message.video:
-            bot.send_video(user_id, message.video.file_id)
-        elif message.video_note:
-            bot.send_video_note(user_id, message.video_note.file_id)
-        elif message.document:
-            bot.send_document(user_id, message.document.file_id)
-        else:
-            bot.send_message(ADMIN_ID, "این نوع پیام رو نمی‌تونم بفرستم.")
-    except Exception:
-        traceback.print_exc()
-        bot.send_message(ADMIN_ID, "خطا هنگام ارسال پیام!")
+        elif message.content_type == 'sticker':
+            bot.send_sticker(user_id, message.sticker.file_id)
+        elif message.content_type == 'animation':
+            bot.send_animation(user_id, message.animation.file_id, caption=message.caption or "")
+        elif message.content_type == 'video_note':
+            bot.send_video_note(user_id, data=message.video_note.file_id)
+        elif message.content_type == 'document':
+            bot.send_document(user_id, message.document.file_id, caption=message.caption or "")
+    except Exception as e:
+        bot.send_message(ADMIN_ID, f"خطا در ارسال پاسخ: {e}")
 
-# اجرای دائمی ربات
-while True:
-    try:
-        bot.polling(none_stop=True)
-    except Exception:
-        traceback.print_exc()
+# ری‌استارت خودکار
+def auto_restart():
+    time.sleep(60)
+    sys.exit()
+
+threading.Thread(target=auto_restart).start()
+
+# اجرای ربات
+bot.infinity_polling()
