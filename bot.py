@@ -10,7 +10,7 @@ bot = telebot.TeleBot(TOKEN)
 @bot.message_handler(commands=['start'])
 def welcome(message):
     if message.chat.id != ADMIN_ID:
-        bot.send_message(message.chat.id, "پیامتو بفرست برام")
+        bot.send_message(message.chat.id, "Hi")
 
 @bot.message_handler(func=lambda message: True, content_types=[
     'text', 'sticker', 'animation', 'audio', 'voice', 'video', 'video_note', 'document'
